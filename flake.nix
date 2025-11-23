@@ -16,8 +16,10 @@
         version = "0.1.0";
         src = ./src;
         nativeBuildInputs = [
-          pkgs.make
+          pkgs.llvmPackages_21.clang-tools
+          pkgs.qemu.src
           pkgs.spike
+          pkgs.cmake
         ];
       };
     in
