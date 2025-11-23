@@ -5,56 +5,58 @@
 
 #include "spike-bind.h"
 
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
 
-// class simple_htif_t : public htif_t {
-// public:
-//   simple_htif_t() : htif_t(0, nullptr) {}
+static std::string elf_to_tmpfile(const char *elf_content, size_t sz) {
 
-//   void wait() { stop(); }
-// };
+  std::string fname = "spike_elf";
 
-struct spike_sim {
-  cfg_t *cfg;
-  sim_t *sim;
+  std::ofstream wf(fname, std::ios::out | std::ios::binary);
 
-  spike_sim() {
+  wf.write(elf_content, sz);
 
-    cfg = new cfg_t();
+  return fname;
+}
 
-    std::vector<std::pair<reg_t, abstract_mem_t *>> mems;
-    std::vector<device_factory_sargs_t> plugin_device_factories;
-
-    std::vector<std::string> htif_args;
+static std::vector<std::pair<reg_t, abstract_mem_t *>>
+make_mems(const std::vector<mem_cfg_t> &layout) {
+  std::vector<std::pair<reg_t, abstract_mem_t *>> mems;
+  mems.reserve(layout.size());
+  for (const auto &cfg : layout) {
+    mems.push_back(std::make_pair(cfg.get_base(), new mem_t(cfg.get_size())));
   }
-};
+  return mems;
+}
 
 extern "C" {
 
-uint64_t spike_run() {
+uint64_t spike_run(const char *elf_content, size_t sz) {
+
   cfg_t cfg;
 
-  std::vector<std::pair<reg_t, abstract_mem_t *>> mems;
-  std::vector<device_factory_sargs_t> plugin_device_factories;
-  std::vector<std::string> htif_args;
-  std::vector<std::string> args;
+  cfg.mem_layout.push_back(mem_cfg_t(0x40000000, 0x8000));
 
+  std::vector<std::pair<reg_t, abstract_mem_t *>> mems =
+      make_mems(cfg.mem_layout);
+  std::vector<device_factory_sargs_t> plugin_device_factories;
   debug_module_config_t dm_config;
 
-  sim_t sim(&cfg, false, mems, plugin_device_factories, args, dm_config, nullptr,
-            false, nullptr, false, nullptr);
+  std::string name = elf_to_tmpfile(elf_content, sz);
+  std::vector<std::string> args = {name};
 
-  sim.load_program();
+  sim_t sim(&cfg, false, mems, plugin_device_factories, args, dm_config,
+            nullptr, true, nullptr, false, NULL);
 
-  return instance;
-}
+  // sim.set_debug(true);
+  sim.run();
 
-void spike_destroy(spike_sim_t *instance) {
-  if (instance) {
-    delete instance;
-  }
+  for (auto& mem : mems)
+    delete mem.second;
+
+  return sim.get_core(0)->get_state()->XPR[10];
 }
 }

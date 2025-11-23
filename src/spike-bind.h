@@ -1,24 +1,14 @@
 #ifndef SPIKE_WRAPPER_H
 #define SPIKE_WRAPPER_H
 
-#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Публичный интерфейс для C
-typedef struct spike_sim spike_sim_t;
-
-// Создание и уничтожение экземпляра Spike
-spike_sim_t *spike_create(const char *isa, const char *priv, int num_harts);
-void spike_del(spike_sim_t *instance);
-
-// Загрузка ELF файла
-bool spike_load_elf(spike_sim_t *instance, const char *elf_path);
-
-// Запуск симуляции
-void spike_run(spike_sim_t *instance);
+uint64_t spike_run(const char *elf_content, size_t sz);
 
 #ifdef __cplusplus
 }

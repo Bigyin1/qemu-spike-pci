@@ -17,20 +17,25 @@
         src = ./src;
         nativeBuildInputs = [
           pkgs.llvmPackages_21.clang-tools
-          pkgs.qemu.src
+          pkgs.coreboot-toolchain.riscv
           pkgs.spike
+          pkgs.dtc
+          pkgs.qemu
           pkgs.cmake
         ];
       };
     in
     {
       packages.${system} = { inherit qemu-pci; };
-      devShells.${system}.default = pkgs.mkShell {
-        name = "qemu-pci";
-        inputsFrom = [
-          qemu-pci
-        ];
+
+      devShells.${system} = {
+
+        default = pkgs.mkShell {
+          name = "qemu-pci";
+          inputsFrom = [
+            qemu-pci
+          ];
+        };
       };
     };
 }
-
