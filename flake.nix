@@ -1,5 +1,5 @@
 {
-  description = "Parse JSON in C and C++";
+  description = "Qemu PCI device";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
@@ -12,45 +12,89 @@
       pkgs = nixpkgs.legacyPackages.${system};
 
       spike-lib = pkgs.stdenv.mkDerivation {
-        pname = "spike-lib";
-        version = "0.1.0";
+        name = "spike-lib";
+
         src = ./spike;
         nativeBuildInputs = [
-          pkgs.spike
           pkgs.cmake
+          pkgs.spike
         ];
       };
 
-      # pcidev = pkgs.stdenv.mkDerivation {
-      #   pname = "qemu";
-      #   version = "0.1.0";
-      #   src = ./pcidev;
-      #   nativeBuildInputs = [
-      #     pkgs.qemu
-      #     spike-lib
-      #     pkgs.meson
-      #   ];
-      # };
+      qemuSrc = pkgs.stdenv.mkDerivation {
+        name = "qemu-source";
+        src = pkgs.qemu.src;
+
+        unpackPhase = ''
+          mkdir -p $out
+          tar -xf $src -C $out --strip-components=1
+        '';
+
+        dontConfigure = true;
+        dontBuild = true;
+        dontFixup = true;
+        dontInstall = true;
+      };
+
+      customQemu = pkgs.qemu.overrideAttrs (old: {
+
+        devSrc = ./pcidev;
+        devPatches = ./pcidev/patches;
+
+        prePatch = (old.prePatch or "") + ''
+          cp ${devSrc/gpu.c} hw/misc/gpu.c
+        '';
+
+        patches = (old.patches or []) ++ [
+            devPatches/kconfig.patch
+            devPatches/meson.patch
+          ];
+      });
+
+      pcidev = pkgs.stdenv.mkDerivation {
+        name = "pcidev";
+
+        src = ./pcidev;
+        nativeBuildInputs = [
+          qemuSrc
+          spike-lib
+          # pkgs.meson
+        ];
+
+        dontUnpack = true;
+        dontConfigure = true;
+        dontBuild = true;
+        dontFixup = true;
+        dontInstall = true;
+      };
 
     in
     {
-      packages.${system} = { inherit spike-lib; };
+      packages.${system} = { inherit pcidev qemuSrc customQemu; };
 
       devShells.${system} = {
 
         default = pkgs.mkShell {
           name = "default";
+
           inputsFrom = [
             spike-lib
-            # pcidev
+            qemuSrc
+            pcidev
+            pkgs.qemu
           ];
-
+        
           nativeBuildInputs = [
-            pkgs.dtc
-            pkgs.llvmPackages_21.clang-tools
+            spike-lib
+            qemuSrc
+            # pcidev
             pkgs.coreboot-toolchain.riscv
+            pkgs.llvmPackages_21.clang-tools
+            pkgs.dtc
           ];
         };
       };
+
+      
     };
 }
