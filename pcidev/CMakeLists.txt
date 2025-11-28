@@ -1,1 +1,1 @@
-add_library(qs gpu.c)
+add_library(dev-gpu MODULE gpu.c)

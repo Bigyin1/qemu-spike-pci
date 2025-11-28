@@ -1,14 +1,6 @@
---- a/hw/misc/Kconfig
-+++ b/hw/misc/Kconfig
-@@ -25,6 +25,11 @@ config PCI_TESTDEV
-     default y if TEST_DEVICES
-     depends on PCI
 
-+config GPU
-+    bool
-+    default y if TEST_DEVICES
-+    depends on PCI && MSI_NONBROKEN
-+
- config EDU
-     bool
-     default y if TEST_DEVICES
+config GPU
+    bool
+    default y if TEST_DEVICES
+    depends on PCI && MSI_NONBROKEN
+

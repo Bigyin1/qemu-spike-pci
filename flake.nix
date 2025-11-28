@@ -36,41 +36,24 @@
         dontInstall = true;
       };
 
-      customQemu = pkgs.qemu.overrideAttrs (old: {
+      qemu-initramfs = pkgs.makeInitrd {
+        name = "qemu-initramfs";
 
-        devSrc = ./pcidev;
-        devPatches = ./pcidev/patches;
-
-        prePatch = (old.prePatch or "") + ''
-          cp ${devSrc/gpu.c} hw/misc/gpu.c
-        '';
-
-        patches = (old.patches or []) ++ [
-            devPatches/kconfig.patch
-            devPatches/meson.patch
-          ];
-      });
-
-      pcidev = pkgs.stdenv.mkDerivation {
-        name = "pcidev";
-
-        src = ./pcidev;
-        nativeBuildInputs = [
-          qemuSrc
-          spike-lib
-          # pkgs.meson
+        contents = [
+          {
+            object = "${pkgs.busybox}/bin/busybox";
+            symlink = "/busybox";
+          }
+          {
+            object = "${./pcidev/init.sh}";
+            symlink = "/init";
+          }
         ];
-
-        dontUnpack = true;
-        dontConfigure = true;
-        dontBuild = true;
-        dontFixup = true;
-        dontInstall = true;
       };
 
     in
     {
-      packages.${system} = { inherit pcidev qemuSrc customQemu; };
+      packages.${system} = { inherit qemu-initramfs; };
 
       devShells.${system} = {
 
@@ -79,22 +62,44 @@
 
           inputsFrom = [
             spike-lib
-            qemuSrc
-            pcidev
             pkgs.qemu
           ];
-        
+
           nativeBuildInputs = [
-            spike-lib
+            qemu-initramfs
+            pkgs.linux
             qemuSrc
-            # pcidev
+            spike-lib
             pkgs.coreboot-toolchain.riscv
             pkgs.llvmPackages_21.clang-tools
-            pkgs.dtc
+            # pkgs.dtc
           ];
+
+          shellHook = ''
+
+            QEMU_SRC=qemu-src
+
+            if [ ! -d $QEMU_SRC ]; then
+              cp -r ${qemuSrc} $QEMU_SRC
+              chmod -R +w $QEMU_SRC
+
+              cat pcidev/patches/meson.patch >> $QEMU_SRC/hw/misc/meson.build
+              cat pcidev/patches/kconfig.patch >> $QEMU_SRC/hw/misc/Kconfig
+
+              ln pcidev/gpu.c $QEMU_SRC/hw/misc/gpu.c
+            fi
+
+            echo "cd $QEMU_SRC && ./configure --target-list=x86_64-softmmu --extra-cflags=-I${spike-lib}/include --extra-ldflags=-L${pkgs.spike}/lib -lfesvr -lriscv -lsoftfloat -ldisasm -L${spike-lib}/lib -lstdc++ -lspikeb" > configure_qemu.sh
+            chmod +x ./configure_qemu.sh
+
+            echo "cd $QEMU_SRC && make -j16" > build_qemu.sh
+            chmod +x ./build_qemu.sh
+
+            echo "$QEMU_SRC/build/qemu-system-x86_64 -enable-kvm -kernel ${pkgs.linux}/bzImage -initrd ${qemu-initramfs}/initrd.gz -chardev stdio,id=char0 -serial chardev:char0 -append 'quiet console=ttyS0,115200' -display none -m 256  -nodefaults" > run_qemu.sh
+            chmod +x ./run_qemu.sh
+          '';
+
         };
       };
-
-      
     };
 }

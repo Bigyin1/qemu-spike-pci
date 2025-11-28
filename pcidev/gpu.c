@@ -9,6 +9,8 @@
 #include "qemu/main-loop.h" /* iothread mutex */
 #include "qemu/module.h"
 #include "qapi/visitor.h"
+#include "spike-bind.h"
+
 
 #define TYPE_PCI_GPU_DEVICE "gpu"
 #define GPU_DEVICE_ID         0x1337
@@ -51,6 +53,7 @@ static void pci_gpu_register_types(void)
 static void gpu_instance_init(Object *obj)
 {
     printf("GPU instance init\n");
+
 }
 
 static void gpu_class_init(ObjectClass *class, void *data)
@@ -76,6 +79,8 @@ static uint64_t gpu_mem_read(void *opaque, hwaddr addr, unsigned size) {
 }
 static void gpu_mem_write(void *opaque, hwaddr addr, uint64_t val, unsigned size) {
 	GpuState *gpu = opaque;
+
+    spike_run(NULL,0);
 	uint64_t bitcount = ((uint64_t)size)<<3;
 	uint64_t mask = (1ULL << bitcount)-1;
 	uint64_t sizedval = val & mask;
