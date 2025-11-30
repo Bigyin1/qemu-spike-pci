@@ -1,2 +1,2 @@
 
-system_ss.add(when: 'CONFIG_GPU', if_true: files('gpu.c'))
+system_ss.add(when: 'CONFIG_SPIKE_PCI', if_true: files('spike.c'))

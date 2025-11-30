@@ -1,5 +1,5 @@
 
-config GPU
+config SPIKE_PCI
     bool
     default y if TEST_DEVICES
     depends on PCI && MSI_NONBROKEN

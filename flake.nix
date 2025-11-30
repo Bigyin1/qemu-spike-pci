@@ -15,11 +15,35 @@
         name = "spike-lib";
 
         src = ./spike;
+
         nativeBuildInputs = [
           pkgs.cmake
           pkgs.spike
         ];
+
       };
+
+      runDevPCI = pkgs.buildGoModule {
+        name = "sender";
+
+        src = ./runDevPCI;
+
+        vendorHash = null;
+      };
+
+      test_riscv_elf =
+        pkgs.runCommand "test compile"
+          {
+            buildInputs = [ pkgs.coreboot-toolchain.riscv ];
+          }
+          ''
+            mkdir -p $out
+
+            riscv64-elf-gcc -O0 -nostdlib -nostartfiles \
+            -T ${./testprog/link.ld} \
+            -o $out/program.elf \
+            ${./testprog/prog.c} ${./testprog/startup.s}
+          '';
 
       qemuSrc = pkgs.stdenv.mkDerivation {
         name = "qemu-source";
@@ -41,13 +65,22 @@
 
         contents = [
           {
+            object = "${./pcidev/init.sh}";
+            symlink = "/init";
+          }
+          {
             object = "${pkgs.busybox}/bin/busybox";
             symlink = "/busybox";
           }
           {
-            object = "${./pcidev/init.sh}";
-            symlink = "/init";
+            object = "${test_riscv_elf}/program.elf";
+            symlink = "/prog.elf";
           }
+          {
+            object = "${runDevPCI}/bin/devpci";
+            symlink = "/send_spike";
+          }
+
         ];
       };
 
@@ -61,18 +94,23 @@
           name = "default";
 
           inputsFrom = [
-            spike-lib
             pkgs.qemu
           ];
 
           nativeBuildInputs = [
-            qemu-initramfs
             pkgs.linux
+            pkgs.spike
+
             qemuSrc
             spike-lib
-            pkgs.coreboot-toolchain.riscv
+            qemu-initramfs
+
+            pkgs.cmake
             pkgs.llvmPackages_21.clang-tools
-            # pkgs.dtc
+            pkgs.dtc
+            pkgs.go
+            pkgs.gopls
+            pkgs.gotools
           ];
 
           shellHook = ''
@@ -86,16 +124,29 @@
               cat pcidev/patches/meson.patch >> $QEMU_SRC/hw/misc/meson.build
               cat pcidev/patches/kconfig.patch >> $QEMU_SRC/hw/misc/Kconfig
 
-              ln pcidev/gpu.c $QEMU_SRC/hw/misc/gpu.c
+              ln pcidev/spike.c $QEMU_SRC/hw/misc/spike.c
             fi
 
-            echo "cd $QEMU_SRC && ./configure --target-list=x86_64-softmmu --extra-cflags=-I${spike-lib}/include --extra-ldflags=-L${pkgs.spike}/lib -lfesvr -lriscv -lsoftfloat -ldisasm -L${spike-lib}/lib -lstdc++ -lspikeb" > configure_qemu.sh
-            chmod +x ./configure_qemu.sh
+
+            echo "cd $QEMU_SRC && ./configure \
+            --target-list=x86_64-softmmu \
+            --extra-cflags=-I${spike-lib}/include \
+            --extra-ldflags=\" -L${pkgs.spike}/lib -lriscv -lsoftfloat -L${spike-lib}/lib -lstdc++ -lspikeb \" " \
+            > configure_qemu.sh
+
 
             echo "cd $QEMU_SRC && make -j16" > build_qemu.sh
-            chmod +x ./build_qemu.sh
 
-            echo "$QEMU_SRC/build/qemu-system-x86_64 -enable-kvm -kernel ${pkgs.linux}/bzImage -initrd ${qemu-initramfs}/initrd.gz -chardev stdio,id=char0 -serial chardev:char0 -append 'quiet console=ttyS0,115200' -display none -m 256  -nodefaults" > run_qemu.sh
+            echo "$QEMU_SRC/build/qemu-system-x86_64 \
+            -enable-kvm \
+            -kernel ${pkgs.linux}/bzImage \
+            -initrd ${qemu-initramfs}/initrd.gz \
+            -chardev stdio,id=char0 -serial chardev:char0 -append 'quiet console=ttyS0,115200' -display none -m 256 -nodefaults \
+            -device spike" \
+            > run_qemu.sh
+
+            chmod +x ./configure_qemu.sh
+            chmod +x ./build_qemu.sh
             chmod +x ./run_qemu.sh
           '';
 

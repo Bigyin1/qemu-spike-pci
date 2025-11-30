@@ -1,6 +1,6 @@
 int prog() {
 
-  int a = 1;
+  int a = 20;
   int b = 2;
   int c = a + b;
   
