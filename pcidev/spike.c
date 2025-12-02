@@ -87,22 +87,26 @@ static uint64_t spike_mem_read(void *opaque, hwaddr addr, unsigned size) {
     return read_uint(spike->data + addr, size);
 }
 
+
 static void write_uint(unsigned char *buffer, uint64_t val, unsigned size) {
-    buffer[0] = (unsigned char)(val >> 0);
-    if (size == 1)
-        return;
-    buffer[1] = (unsigned char)(val >> 8);
-    if (size == 2)
-        return;
-    buffer[2] = (unsigned char)(val >> 16);
-    buffer[3] = (unsigned char)(val >> 24);
-    if (size == 4)
-        return;
-    buffer[4] = (unsigned char)(val >> 32);
-    buffer[5] = (unsigned char)(val >> 40);
-    buffer[6] = (unsigned char)(val >> 48);
-    buffer[7] = (unsigned char)(val >> 56);
+    switch (size)
+    {
+    case 1:
+        *(uint8_t*)buffer = (uint8_t)val;
+        break;
+    case 2:
+        *(uint16_t*)buffer = (uint16_t)val;
+        break;
+    case 4:
+        *(uint32_t*)buffer = (uint32_t)val;
+        break;   
+    case 8:
+        *(uint64_t*)buffer = val; 
+    default:
+        ;
+    }
 }
+
 
 static void spike_mem_write(void *opaque, hwaddr addr, uint64_t val, unsigned size) {
 	spikeState *spike = opaque;
